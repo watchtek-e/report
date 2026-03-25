@@ -9,6 +9,14 @@ import { ReportSplitView } from '../components/ReportSplitView';
 import { addDays, endOfMonth, format, startOfMonth, startOfWeek, endOfWeek, isWithinInterval, parseISO, getMonth } from 'date-fns';
 import './WeeklyReport.css';
 
+const WEEKDAY_OPTIONS = [
+  { value: 1, label: '월' },
+  { value: 2, label: '화' },
+  { value: 3, label: '수' },
+  { value: 4, label: '목' },
+  { value: 5, label: '금' },
+];
+
 export const WeeklyReport = () => {
   const { reports, addReport } = useReportStore();
   const { categories, holidays } = useSystemStore();
@@ -23,6 +31,7 @@ export const WeeklyReport = () => {
   const [isPlanned, setIsPlanned] = useState(true);
   const [content, setContent] = useState('');
   const [isPlanCardOpen, setIsPlanCardOpen] = useState(false);
+  const [planWeekdays, setPlanWeekdays] = useState<number[]>([]);
 
   const selectedMain = categories.find(c => c.id === mainType);
   const subOptions = selectedMain?.subTypes ?? [];
@@ -142,11 +151,13 @@ export const WeeklyReport = () => {
       progress: Number(progress) || 0,
       type: 'todo',
       periodType: 'weekly',
+      planWeekdays,
       isPlanned
     });
     setContent('');
     setMd('');
     setProgress('');
+    setPlanWeekdays([]);
   };
 
   const applyMonthlyPlan = (planId: string) => {
@@ -227,6 +238,27 @@ export const WeeklyReport = () => {
               </div>
             </div>
           )}
+          <div style={{ marginBottom: '0.75rem' }}>
+            <label className="ui-input-label" style={{ fontSize: '0.78rem', display: 'block', marginBottom: '0.35rem' }}>수행 요일</label>
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              {WEEKDAY_OPTIONS.map((day) => (
+                <label key={day.value} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                  <input
+                    type="checkbox"
+                    checked={planWeekdays.includes(day.value)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setPlanWeekdays((prev) => [...prev, day.value].sort((a, b) => a - b));
+                      } else {
+                        setPlanWeekdays((prev) => prev.filter((value) => value !== day.value));
+                      }
+                    }}
+                  />
+                  {day.label}
+                </label>
+              ))}
+            </div>
+          </div>
           {/* 1행: 유형 / 세부유형 / MD / 진행률 / 체크박스 / 버튼 */}
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
             <div className="ui-input-container" style={{ flex: '0 0 250px' }}>

@@ -25,6 +25,7 @@ export const MonthlyReport = () => {
   const [isPlanned, setIsPlanned] = useState(true);
   const [content, setContent] = useState('');
   const [isPlanCardOpen, setIsPlanCardOpen] = useState(false);
+  const [planWeeks, setPlanWeeks] = useState<number[]>([]);
 
   const selectedMain = categories.find(c => c.id === mainType);
   const subOptions = selectedMain?.subTypes ?? [];
@@ -73,6 +74,24 @@ export const MonthlyReport = () => {
 
     return weekCount * 5 - holidayCount;
   }, [selectedDate, holidays]);
+
+  const monthWeekCount = useMemo(() => {
+    const monthStartDate = startOfMonth(parseISO(selectedDate));
+    const monthEndDate = endOfMonth(parseISO(selectedDate));
+    let weekCount = 0;
+    const cur = startOfWeek(monthStartDate, { weekStartsOn: 1 });
+
+    while (cur <= monthEndDate) {
+      const thursday = new Date(cur);
+      thursday.setDate(thursday.getDate() + 3);
+      if (thursday.getMonth() === monthStartDate.getMonth()) {
+        weekCount += 1;
+      }
+      cur.setDate(cur.getDate() + 7);
+    }
+
+    return weekCount;
+  }, [selectedDate]);
 
   // ISO 주차 기준 조회 기간: 첫 번째 유효 주의 월요일 ~ 마지막 유효 주의 금요일
   const workingRange = useMemo(() => {
@@ -185,11 +204,13 @@ export const MonthlyReport = () => {
       progress: Number(progress) || 0,
       type: 'todo',
       periodType: 'monthly',
+      planWeeks,
       isPlanned
     });
     setContent('');
     setMd('');
     setProgress('');
+    setPlanWeeks([]);
   };
 
   return (
@@ -261,6 +282,27 @@ export const MonthlyReport = () => {
               </div>
             </div>
           )}
+          <div style={{ marginBottom: '0.75rem' }}>
+            <label className="ui-input-label" style={{ fontSize: '0.78rem', display: 'block', marginBottom: '0.35rem' }}>수행 주차</label>
+            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              {Array.from({ length: monthWeekCount }, (_, index) => index + 1).map((weekNo) => (
+                <label key={weekNo} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                  <input
+                    type="checkbox"
+                    checked={planWeeks.includes(weekNo)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setPlanWeeks((prev) => [...prev, weekNo].sort((a, b) => a - b));
+                      } else {
+                        setPlanWeeks((prev) => prev.filter((value) => value !== weekNo));
+                      }
+                    }}
+                  />
+                  {weekNo}주차
+                </label>
+              ))}
+            </div>
+          </div>
           {/* 1행: 유형 / 세부유형 / MD / 진행률 / 체크박스 / 버튼 */}
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
             <div className="ui-input-container" style={{ flex: '0 0 250px' }}>
