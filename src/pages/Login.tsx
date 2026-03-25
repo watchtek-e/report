@@ -14,6 +14,7 @@ export const Login = () => {
   const [department, setDepartment] = useState('');
   const [part, setPart] = useState('');
   const [position, setPosition] = useState('');
+  const [role, setRole] = useState<'team-member' | 'team-lead'>('team-member');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const login = useUserStore((state) => state.login);
@@ -44,7 +45,7 @@ export const Login = () => {
       department,
       part,
       position,
-      role: 'team-member',
+      role,
     });
 
     if (!result.ok) {
@@ -59,6 +60,7 @@ export const Login = () => {
     setDepartment('');
     setPart('');
     setPosition('');
+    setRole('team-member');
   };
 
   return (
@@ -141,6 +143,17 @@ export const Login = () => {
                   onChange={(e) => setPosition(e.target.value)}
                   required
                 />
+                <div>
+                  <label className="login-field-label">직책</label>
+                  <select
+                    className="login-select"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value as 'team-member' | 'team-lead')}
+                  >
+                    <option value="team-member">팀원</option>
+                    <option value="team-lead">팀장</option>
+                  </select>
+                </div>
               </>
             )}
 

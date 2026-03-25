@@ -79,5 +79,24 @@
   font-weight: 500;
 }
 
+.login-field-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.login-select {
+  width: 100%;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  padding: 0 0.75rem;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  background-color: #ffffff;
+}
+
 .mt-4 { margin-top: 1rem; }
 .p-4-login .ui-card-content { padding: 2.5rem; }
