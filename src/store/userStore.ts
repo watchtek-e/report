@@ -9,6 +9,7 @@ export interface User {
   department: string;
   part?: string;
   position: string;
+  role: 'team-lead' | 'team-member';
 }
 
 interface StoredUser extends User {
@@ -30,9 +31,9 @@ interface UserState {
 }
 
 const MOCK_USERS: Record<string, StoredUser> = {
-  'admin': { id: 'admin', pw: '1234', name: '관리자', department: '개발팀', part: '프론트엔드', position: '선임' },
-  'test': { id: 'test', pw: '1234', name: '테스터', department: '기획팀', position: '사원' },
-  'watchtek': { id: 'watchtek', pw: '1234', name: '워치텍', department: '솔루션본부', part: 'A 파트', position: '파트장' }
+  'admin': { id: 'admin', pw: '1234', name: '관리자', department: '개발팀', part: '프론트엔드', position: '선임', role: 'team-lead' },
+  'test': { id: 'test', pw: '1234', name: '테스터', department: '기획팀', position: '사원', role: 'team-member' },
+  'watchtek': { id: 'watchtek', pw: '1234', name: '워치텍', department: '솔루션본부', part: 'A 파트', position: '파트장', role: 'team-lead' }
 };
 
 const toUser = (user: StoredUser): User => ({
@@ -41,6 +42,7 @@ const toUser = (user: StoredUser): User => ({
   department: user.department,
   part: user.part,
   position: user.position,
+  role: user.role ?? 'team-member',
 });
 
 const buildAllUsers = (customUsers: Record<string, StoredUser>) => {
@@ -79,6 +81,7 @@ export const useUserStore = create<UserState>()(
                 department: data.department ?? '',
                 part: data.part,
                 position: data.position ?? '',
+                role: data.role ?? 'team-member',
               };
               return acc;
             }, {});
@@ -132,6 +135,7 @@ export const useUserStore = create<UserState>()(
           department: payload.department.trim(),
           part: payload.part?.trim(),
           position: payload.position.trim(),
+          role: payload.role ?? 'team-member',
         };
 
         await setDoc(doc(db, 'users', normalized.id), normalized, { merge: true });

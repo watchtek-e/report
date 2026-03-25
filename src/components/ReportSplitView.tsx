@@ -9,7 +9,7 @@ interface ReportSplitViewProps {
   todoSummaryText?: string;
   doneSummaryText?: string;
   forceMdForDone?: boolean;
-  forceMdForTodo?: boolean;
+  usersMap?: Record<string, any>;
 }
 
 export const ReportSplitView = ({
@@ -19,7 +19,7 @@ export const ReportSplitView = ({
   todoSummaryText,
   doneSummaryText,
   forceMdForDone = false,
-  forceMdForTodo = false,
+  usersMap = {},
 }: ReportSplitViewProps) => {
   const todoReports = reports.filter(r => r.type === 'todo');
   const doneReports = reports.filter(r => r.type === 'done');
@@ -41,7 +41,7 @@ export const ReportSplitView = ({
                 key={r.id}
                 report={r}
                 isReadOnly={todoReadOnly}
-                forceMdForTodo={forceMdForTodo}
+                userName={usersMap[r.userId]?.name || ''}
               />
             ))}
           </div>
@@ -64,6 +64,7 @@ export const ReportSplitView = ({
                 report={r}
                 isReadOnly={doneReadOnly}
                 forceMdForDone={forceMdForDone}
+                userName={usersMap[r.userId]?.name || ''}
               />
             ))}
           </div>

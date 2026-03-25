@@ -34,6 +34,7 @@ const ProfileSettings = () => {
     department: currentUser?.department || '',
     part: currentUser?.part || '',
     position: currentUser?.position || '',
+    role: currentUser?.role || 'team-member',
   });
 
   const handleSave = () => {
@@ -48,6 +49,23 @@ const ProfileSettings = () => {
         <Input label="소속명(팀)" value={formData.department} onChange={e => setFormData({...formData, department: e.target.value})} />
         <Input label="파트 (선택)" value={formData.part} onChange={e => setFormData({...formData, part: e.target.value})} />
         <Input label="직급" value={formData.position} onChange={e => setFormData({...formData, position: e.target.value})} />
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>직책</label>
+          <select 
+            value={formData.role} 
+            onChange={e => setFormData({...formData, role: e.target.value as 'team-lead' | 'team-member'})}
+            style={{ 
+              width: '100%', 
+              padding: '0.5rem 0.75rem', 
+              border: '1px solid #d1d5db', 
+              borderRadius: '4px',
+              fontSize: '0.9rem'
+            }}
+          >
+            <option value="team-member">팀원</option>
+            <option value="team-lead">팀장</option>
+          </select>
+        </div>
         <div className="mt-4">
           <Button onClick={handleSave}>내 정보 저장하기</Button>
         </div>

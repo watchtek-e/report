@@ -44,6 +44,7 @@ export const Login = () => {
       department,
       part,
       position,
+      role: 'team-member',
     });
 
     if (!result.ok) {

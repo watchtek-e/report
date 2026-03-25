@@ -9,10 +9,10 @@ interface ReportItemProps {
   report: Report;
   isReadOnly?: boolean;
   forceMdForDone?: boolean;
-  forceMdForTodo?: boolean;
+  userName?: string;
 }
 
-export const ReportItem = ({ report, isReadOnly = false, forceMdForDone = false, forceMdForTodo = false }: ReportItemProps) => {
+export const ReportItem = ({ report, isReadOnly = false, forceMdForDone = false, userName = '' }: ReportItemProps) => {
   const { updateReport, deleteReport } = useReportStore();
   const { categories } = useSystemStore();
   const [isEditing, setIsEditing] = useState(false);
@@ -111,37 +111,38 @@ export const ReportItem = ({ report, isReadOnly = false, forceMdForDone = false,
   const doneEffortText = forceMdForDone || report.periodType === 'weekly' || report.periodType === 'monthly'
     ? `${effortMd}MD / `
     : `${effortMh}MH / `;
-  const todoEffortText = forceMdForTodo || report.periodType === 'weekly' || report.periodType === 'monthly'
-    ? `${effortMd}MD / `
-    : `${effortMh}MH / `;
+
+  // Extract ticket number and description
+  const contentMatch = report.content.match(/^(#\d+)\s*(.*)$/);
+  const ticketNumber = contentMatch ? contentMatch[1] : '';
+  const description = contentMatch ? contentMatch[2] : report.content;
+  const effortLabel = report.type === 'done' ? `진행률 ${report.progress}%` : `예상 ${report.progress}%`;
 
   return (
     <div className="report-item">
-      <div className="report-info">
-        <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
-          <span style={{ fontWeight: 600, color: '#2563eb', backgroundColor: '#dbeafe', padding: '0.15rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem' }}>[{mainCat}]</span>
-          {subCat && subCat !== '미지정' && <span style={{ fontWeight: 600, color: '#0ea5e9', backgroundColor: '#e0f2fe', padding: '0.15rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem' }}>[{subCat}]</span>}
+      {/* First line: Categories + Status + Effort + Username */}
+      <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', marginBottom: '0.3rem' }}>
+        <span style={{ fontWeight: 600, color: '#2563eb', backgroundColor: '#dbeafe', padding: '0.15rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>[{mainCat}]</span>
+        {subCat && subCat !== '미지정' && <span style={{ fontWeight: 600, color: '#0ea5e9', backgroundColor: '#e0f2fe', padding: '0.15rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>[{subCat}]</span>}
+        {report.isPlanned && <span style={{ flexShrink: 0, fontSize: '0.75rem', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 600, whiteSpace: 'nowrap' }}>[계획됨]</span>}
+        <span style={{ fontSize: '0.9rem', color: '#6b7280', whiteSpace: 'nowrap' }}>({doneEffortText}{effortLabel})</span>
+        {userName && <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: '#6b7280', fontWeight: 500 }}>{userName}</span>}
+      </div>
+      
+      {/* Second line: Ticket + Description + Actions */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem', color: '#374151' }}>
+        <div>
+          {ticketNumber && <span style={{ fontWeight: 600, color: '#6366f1' }}>{ticketNumber} </span>}
+          {description}
         </div>
-        {report.isPlanned && <span style={{ flexShrink: 0, fontSize: '0.75rem', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 600 }}>[계획됨]</span>}
-        
-        <span className="report-content">{report.content}</span>
-        
-        {report.type === 'done' ? (
-          <span className="report-stats done-stats" style={{ marginLeft: 'auto', flexShrink: 0 }}>
-            {doneEffortText}진행률 {report.progress}%
-          </span>
-        ) : (
-          <span className="report-stats todo-stats" style={{ marginLeft: 'auto', flexShrink: 0 }}>
-            {todoEffortText}예상 {report.progress}%
-          </span>
+
+        {!isReadOnly && (
+          <div className="report-actions">
+            <button onClick={() => setIsEditing(true)} className="action-btn text-blue">수정</button>
+            <button onClick={() => { if (confirm('삭제하시겠습니까?')) deleteReport(report.id); }} className="action-btn text-red">삭제</button>
+          </div>
         )}
       </div>
-      {!isReadOnly && (
-        <div className="report-actions">
-          <button onClick={() => setIsEditing(true)} className="action-btn text-blue">수정</button>
-          <button onClick={() => { if (confirm('삭제하시겠습니까?')) deleteReport(report.id); }} className="action-btn text-red">삭제</button>
-        </div>
-      )}
     </div>
   );
 };

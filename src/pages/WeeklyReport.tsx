@@ -6,23 +6,14 @@ import { useReportStore } from '../store/reportStore';
 import { useSystemStore } from '../store/systemStore';
 import { useUserStore } from '../store/userStore';
 import { ReportSplitView } from '../components/ReportSplitView';
-import { addDays, endOfMonth, format, parse, startOfMonth, startOfWeek, endOfWeek, isWithinInterval, parseISO, getMonth } from 'date-fns';
+import { addDays, endOfMonth, format, startOfMonth, startOfWeek, endOfWeek, isWithinInterval, parseISO, getMonth } from 'date-fns';
 import './WeeklyReport.css';
-
-const toWeekInputValue = (dateStr: string) => {
-  const date = parseISO(dateStr);
-  return format(date, "RRRR-'W'II");
-};
-
-const fromWeekInputToDate = (weekValue: string) => {
-  const parsed = parse(weekValue, "RRRR-'W'II", new Date());
-  return format(startOfWeek(parsed, { weekStartsOn: 1 }), 'yyyy-MM-dd');
-};
 
 export const WeeklyReport = () => {
   const { reports, addReport } = useReportStore();
   const { categories, holidays } = useSystemStore();
-  const { currentUser } = useUserStore();
+  const { currentUser, getAllUsers } = useUserStore();
+  const usersMap = useMemo(() => getAllUsers(), [getAllUsers]);
 
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [mainType, setMainType] = useState(categories.length > 0 ? categories[0].id : '');
@@ -31,7 +22,7 @@ export const WeeklyReport = () => {
   const [progress, setProgress] = useState('');
   const [isPlanned, setIsPlanned] = useState(true);
   const [content, setContent] = useState('');
-  const [selectedMonthlyPlanId, setSelectedMonthlyPlanId] = useState('');
+  const [isPlanCardOpen, setIsPlanCardOpen] = useState(false);
 
   const selectedMain = categories.find(c => c.id === mainType);
   const subOptions = selectedMain?.subTypes ?? [];
@@ -75,15 +66,26 @@ export const WeeklyReport = () => {
 
   const currentWeek = getMonthWeekByThursdayRule(weekAnchor);
 
+  // 팀장이면 현재 팀의 모든 사람, 아니면 자신만
+  const scopedUserIds = useMemo(() => {
+    if (!currentUser) return [];
+    if (currentUser.role === 'team-lead') {
+      return Object.values(getAllUsers())
+        .filter(u => u.department === currentUser.department)
+        .map(u => u.id);
+    }
+    return [currentUser.id];
+  }, [currentUser, getAllUsers]);
+
   const myDailyReports = useMemo(() =>
-    reports.filter(r => r.periodType === 'daily' && r.userId === currentUser?.id &&
+    reports.filter(r => r.periodType === 'daily' && scopedUserIds.includes(r.userId) &&
       isWithinInterval(parseISO(r.date), { start: weekStart, end: weekEnd })),
-    [reports, selectedDate, weekStart, weekEnd, currentUser?.id]);
+    [reports, selectedDate, weekStart, weekEnd, scopedUserIds]);
 
   const myWeeklyPlans = useMemo(() =>
-    reports.filter(r => r.periodType === 'weekly' && r.userId === currentUser?.id &&
+    reports.filter(r => r.periodType === 'weekly' && scopedUserIds.includes(r.userId) &&
       isWithinInterval(parseISO(r.date), { start: weekStart, end: weekEnd })),
-    [reports, selectedDate, weekStart, weekEnd, currentUser?.id]);
+    [reports, selectedDate, weekStart, weekEnd, scopedUserIds]);
 
   const monthlyPlanOptions = useMemo(() =>
     reports.filter((report) => {
@@ -158,9 +160,6 @@ export const WeeklyReport = () => {
     if (main) setMainType(main.id);
     setSubType(sub?.id ?? '');
     setContent(target.content);
-    setProgress(String(target.progress));
-    setMd((target.mh / 8).toFixed(1));
-    setIsPlanned(target.isPlanned);
   };
 
   return (
@@ -169,10 +168,10 @@ export const WeeklyReport = () => {
         <h2 style={{ fontSize: '1.2rem', margin: 0 }}>주간 보고</h2>
         <div style={{ fontSize: '0.82rem' }}>
           <Input
-            type="week"
+            type="date"
             label=""
-            value={toWeekInputValue(selectedDate)}
-            onChange={(e) => setSelectedDate(fromWeekInputToDate(e.target.value))}
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
           />
         </div>
       </div>
@@ -180,19 +179,54 @@ export const WeeklyReport = () => {
         조회 기간: {format(weekStart, 'yyyy-MM-dd')} ~ {format(weekEnd, 'yyyy-MM-dd')}
       </p>
 
-      <Card title={`${currentMonth}월 ${currentWeek}주차 전체 현황`} className="mb-4">
-        <ReportSplitView
-          reports={combinedReports}
-          doneReadOnly={true}
-          forceMdForDone={true}
-          forceMdForTodo={true}
-          todoSummaryText={`(입력공수 ${todoEnteredMd.toFixed(1)}MD / 총 공수 ${weeklyTotalMd.toFixed(1)}MD)`}
-          doneSummaryText={`(입력공수 ${doneEnteredMd.toFixed(1)}MD / 총 공수 ${weeklyTotalMd.toFixed(1)}MD)`}
-        />
-      </Card>
+      <Card title="" className="mb-4">
+        <button
+          type="button"
+          onClick={() => setIsPlanCardOpen((prev) => !prev)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: isPlanCardOpen ? '1rem' : 0,
+            border: 'none',
+            background: 'transparent',
+            padding: 0,
+            cursor: 'pointer',
+            borderBottom: '1px solid #e5e7eb',
+            paddingBottom: '0.6rem',
+          }}
+        >
+          <h3 style={{ margin: 0, fontSize: '1.05rem' }}>{currentMonth}월 {currentWeek}주차 업무 계획 추가</h3>
+          <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>{isPlanCardOpen ? '접기' : '펼치기'}</span>
+        </button>
 
-      <Card title={`${currentMonth}월 ${currentWeek}주차 업무 계획 추가`} className="mb-4">
+        {isPlanCardOpen && (
         <form onSubmit={handleAddPlan} className="report-form">
+          {/* 0행: 월간 계획 가져오기 */}
+          {monthlyPlanOptions.length > 0 && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <div className="ui-input-container" style={{ flex: '0 0 100%' }}>
+                <label className="ui-input-label" style={{ fontSize: '0.78rem' }}>📋 월간 계획 가져오기</label>
+                <select
+                  className="ui-input"
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      applyMonthlyPlan(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                >
+                  <option value="">선택하면 자동 입력됩니다</option>
+                  {monthlyPlanOptions.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.category} | {plan.content}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
           {/* 1행: 유형 / 세부유형 / MD / 진행률 / 체크박스 / 버튼 */}
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
             <div className="ui-input-container" style={{ flex: '0 0 250px' }}>
@@ -221,23 +255,6 @@ export const WeeklyReport = () => {
                 계획작업
               </label>
             </div>
-            <div className="ui-input-container" style={{ flex: '0 0 260px' }}>
-              <label className="ui-input-label" style={{ fontSize: '0.78rem' }}>월간 계획 가져오기</label>
-              <select
-                className="ui-input"
-                value={selectedMonthlyPlanId}
-                onChange={(e) => {
-                  const nextId = e.target.value;
-                  setSelectedMonthlyPlanId(nextId);
-                  if (nextId) applyMonthlyPlan(nextId);
-                }}
-              >
-                <option value="">선택 안함</option>
-                {monthlyPlanOptions.map((plan) => (
-                  <option key={plan.id} value={plan.id}>{plan.content}</option>
-                ))}
-              </select>
-            </div>
             <div style={{ paddingBottom: '2px', marginLeft: 'auto' }}>
               <Button type="submit" size="sm">✔</Button>
             </div>
@@ -251,6 +268,18 @@ export const WeeklyReport = () => {
             required
           />
         </form>
+        )}
+      </Card>
+
+      <Card title={`${currentMonth}월 ${currentWeek}주차 전체 현황`} className="mb-4">
+        <ReportSplitView
+          reports={combinedReports}
+          doneReadOnly={true}
+          forceMdForDone={true}
+          todoSummaryText={`(입력공수 ${todoEnteredMd.toFixed(1)}MD / 총 공수 ${weeklyTotalMd.toFixed(1)}MD)`}
+          doneSummaryText={`(입력공수 ${doneEnteredMd.toFixed(1)}MD / 총 공수 ${weeklyTotalMd.toFixed(1)}MD)`}
+          usersMap={usersMap}
+        />
       </Card>
     </div>
   );

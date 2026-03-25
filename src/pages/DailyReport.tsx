@@ -12,7 +12,8 @@ import './DailyReport.css';
 export const DailyReport = () => {
   const { reports, addReport } = useReportStore();
   const { categories, holidays } = useSystemStore();
-  const { currentUser } = useUserStore();
+  const { currentUser, getAllUsers } = useUserStore();
+  const usersMap = useMemo(() => getAllUsers(), [getAllUsers]);
 
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [type, setType] = useState<'done' | 'todo'>('done');
@@ -23,7 +24,6 @@ export const DailyReport = () => {
   const [progress, setProgress] = useState('');
   const [isPlanned, setIsPlanned] = useState(true);
   const [content, setContent] = useState('');
-  const [selectedMonthlyPlanId, setSelectedMonthlyPlanId] = useState('');
 
   const selectedMain = categories.find(c => c.id === mainType);
   const subOptions = selectedMain?.subTypes ?? [];
@@ -36,14 +36,25 @@ export const DailyReport = () => {
     return sub ? `${main} > ${sub}` : `${main} > 미지정`;
   };
 
-  const todayReports = reports.filter(r => r.date === selectedDate && r.periodType === 'daily' && r.userId === currentUser?.id);
+  // 팀장이면 현재 팀의 모든 사람, 아니면 자신만
+  const scopedUserIds = useMemo(() => {
+    if (!currentUser) return [];
+    if (currentUser.role === 'team-lead') {
+      return Object.values(getAllUsers())
+        .filter(u => u.department === currentUser.department)
+        .map(u => u.id);
+    }
+    return [currentUser.id];
+  }, [currentUser, getAllUsers]);
+
+  const todayReports = reports.filter(r => r.date === selectedDate && r.periodType === 'daily' && scopedUserIds.includes(r.userId));
   const isHoliday = holidays.includes(selectedDate);
   const monthStart = startOfMonth(parseISO(selectedDate));
   const monthEnd = endOfMonth(parseISO(selectedDate));
 
   const monthlyPlanOptions = useMemo(() => (
     reports.filter((report) =>
-      report.userId === currentUser?.id &&
+      currentUser?.id === report.userId &&
       report.periodType === 'monthly' &&
       report.type === 'todo' &&
       isWithinInterval(parseISO(report.date), { start: monthStart, end: monthEnd }),
@@ -61,14 +72,25 @@ export const DailyReport = () => {
     if (main) setMainType(main.id);
     setSubType(sub?.id ?? '');
     setContent(target.content);
-    setProgress(String(target.progress));
-    setMh(String(target.mh));
-    setIsPlanned(target.isPlanned);
   };
 
-  const todoEnteredMh = todayReports.filter((report) => report.type === 'todo').reduce((acc, report) => acc + report.mh, 0);
+  const todayPlannedTasks = todayReports.filter((report) => report.type === 'todo');
+  const todoEnteredMh = todayPlannedTasks.reduce((acc, report) => acc + report.mh, 0);
   const doneEnteredMh = todayReports.filter((report) => report.type === 'done').reduce((acc, report) => acc + report.mh, 0);
   const dailyTotalMh = isHoliday ? 0 : 8;
+
+  const applyPlannedTask = (plannedTask: typeof todayReports[0]) => {
+    const [mainName, subName] = plannedTask.category.split(' > ');
+    const main = categories.find((category) => category.mainType === mainName);
+    const sub = main?.subTypes.find((subTypeItem) => subTypeItem.name === subName);
+
+    if (main) setMainType(main.id);
+    setSubType(sub?.id ?? '');
+    setContent(plannedTask.content);
+    setProgress(String(plannedTask.progress));
+    setMh(String(plannedTask.mh));
+    setIsPlanned(plannedTask.isPlanned);
+  };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -123,6 +145,55 @@ export const DailyReport = () => {
 
       <Card className="p-4 mb-4" style={{ backgroundColor: type === 'todo' ? '#fefce8' : '#f0fdf4' }}>
         <form onSubmit={handleSubmit} className="report-form">
+          {/* 0행: 계획 업무에서 가져오기 (done일 때만) */}
+          {type === 'done' && todayPlannedTasks.length > 0 && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <div className="ui-input-container" style={{ flex: '0 0 100%' }}>
+                <label className="ui-input-label" style={{ fontSize: '0.78rem' }}>📋 계획 업무에서 가져오기</label>
+                <select
+                  className="ui-input"
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const task = todayPlannedTasks.find(t => t.id === e.target.value);
+                      if (task) applyPlannedTask(task);
+                      e.target.value = '';
+                    }
+                  }}
+                >
+                  <option value="">선택하면 자동 입력됩니다</option>
+                  {todayPlannedTasks.map((task) => (
+                    <option key={task.id} value={task.id}>
+                      {task.category} | {task.content} ({task.mh}MH)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+          {/* 0행: 월간 계획 가져오기 (todo일 때만) */}
+          {type === 'todo' && monthlyPlanOptions.length > 0 && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <div className="ui-input-container" style={{ flex: '0 0 100%' }}>
+                <label className="ui-input-label" style={{ fontSize: '0.78rem' }}>📋 월간 계획 가져오기</label>
+                <select
+                  className="ui-input"
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      applyMonthlyPlan(e.target.value);
+                      e.target.value = '';
+                    }
+                  }}
+                >
+                  <option value="">선택하면 자동 입력됩니다</option>
+                  {monthlyPlanOptions.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.category} | {plan.content}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
           {/* 1행: 유형 / 세부유형 / MH / 진행률 / 체크박스 / 추가버튼 */}
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '0.6rem' }}>
             <div className="ui-input-container" style={{ flex: '0 0 250px' }}>
@@ -151,25 +222,6 @@ export const DailyReport = () => {
                 계획작업
               </label>
             </div>
-            {type === 'todo' && (
-              <div className="ui-input-container" style={{ flex: '0 0 260px' }}>
-                <label className="ui-input-label" style={{ fontSize: '0.78rem' }}>월간 계획 가져오기</label>
-                <select
-                  className="ui-input"
-                  value={selectedMonthlyPlanId}
-                  onChange={(e) => {
-                    const nextId = e.target.value;
-                    setSelectedMonthlyPlanId(nextId);
-                    if (nextId) applyMonthlyPlan(nextId);
-                  }}
-                >
-                  <option value="">선택 안함</option>
-                  {monthlyPlanOptions.map((plan) => (
-                    <option key={plan.id} value={plan.id}>{plan.content}</option>
-                  ))}
-                </select>
-              </div>
-            )}
             <div style={{ paddingBottom: '2px', marginLeft: 'auto' }}>
               <Button type="submit" size="sm">✔</Button>
             </div>
@@ -190,8 +242,10 @@ export const DailyReport = () => {
           reports={todayReports}
           todoSummaryText={`(입력공수 ${todoEnteredMh.toFixed(1)}MH / 총 공수 ${dailyTotalMh.toFixed(1)}MH)`}
           doneSummaryText={`(입력공수 ${doneEnteredMh.toFixed(1)}MH / 총 공수 ${dailyTotalMh.toFixed(1)}MH)`}
+          usersMap={usersMap}
         />
       </Card>
     </div>
   );
 };
+

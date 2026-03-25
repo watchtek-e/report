@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Sidebar } from './components/Sidebar'
 import { DailyReport } from './pages/DailyReport'
 import { WeeklyReport } from './pages/WeeklyReport'
@@ -15,29 +15,13 @@ import './index.css'
 
 const PrivateLayout = ({ children }: { children: React.ReactNode }) => {
   const { currentUser } = useUserStore();
-  const location = useLocation();
 
   if (!currentUser) return <Navigate to="/login" replace />;
-
-  const getPageTitle = () => {
-    switch (location.pathname) {
-      case '/': return '내 업무 대시보드';
-      case '/daily': return '일간 보고';
-      case '/weekly': return '주간 보고';
-      case '/monthly': return '월간 보고';
-      case '/consolidation': return '취합 확인';
-      case '/settings': return '앱 설정 및 관리';
-      default: return 'Watchtek Report';
-    }
-  };
 
   return (
     <div className="app-layout">
       <Sidebar />
       <main className="app-main">
-        <header className="app-topbar">
-          <h1>{getPageTitle()}</h1>
-        </header>
         <div className="app-content">
           {children}
         </div>
