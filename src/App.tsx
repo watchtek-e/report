@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
+import { useEffect } from 'react';
+import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom'
 import { Sidebar } from './components/Sidebar'
 import { DailyReport } from './pages/DailyReport'
 import { WeeklyReport } from './pages/WeeklyReport'
@@ -7,6 +8,8 @@ import { Dashboard } from './pages/Dashboard'
 import { Login } from './pages/Login'
 import { Settings } from './pages/Settings'
 import { useUserStore } from './store/userStore'
+import { useReportStore } from './store/reportStore';
+import { useSystemStore } from './store/systemStore';
 import './index.css'
 
 const PrivateLayout = ({ children }: { children: React.ReactNode }) => {
@@ -42,8 +45,36 @@ const PrivateLayout = ({ children }: { children: React.ReactNode }) => {
 };
 
 function App() {
+  const { currentUser } = useUserStore();
+  const startUserSync = useUserStore((state) => state.startUserSync);
+  const stopUserSync = useUserStore((state) => state.stopUserSync);
+  const startReportSync = useReportStore((state) => state.startReportSync);
+  const stopReportSync = useReportStore((state) => state.stopReportSync);
+  const startSystemSync = useSystemStore((state) => state.startSystemSync);
+  const stopSystemSync = useSystemStore((state) => state.stopSystemSync);
+
+  useEffect(() => {
+    startUserSync();
+    return () => stopUserSync();
+  }, [startUserSync, stopUserSync]);
+
+  useEffect(() => {
+    startSystemSync();
+    return () => stopSystemSync();
+  }, [startSystemSync, stopSystemSync]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      stopReportSync();
+      return;
+    }
+
+    startReportSync(currentUser.id);
+    return () => stopReportSync();
+  }, [currentUser, startReportSync, stopReportSync]);
+
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="*" element={
@@ -58,7 +89,7 @@ function App() {
           </PrivateLayout>
         } />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 

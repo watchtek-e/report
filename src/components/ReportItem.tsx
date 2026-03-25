@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Report, useReportStore } from '../store/reportStore';
 import { useSystemStore } from '../store/systemStore';
 import { Button } from './Button';
@@ -90,7 +90,7 @@ export const ReportItem = ({ report, isReadOnly = false }: { report: Report, isR
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <Button onClick={handleSave} size="sm">저장</Button>
-            <Button variant="outline" onClick={() => setIsEditing(false)} size="sm">취소</Button>
+            <Button variant="secondary" onClick={() => setIsEditing(false)} size="sm">취소</Button>
           </div>
         </div>
       </div>

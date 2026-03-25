@@ -1,4 +1,3 @@
-import React from 'react';
 import { Report } from '../store/reportStore';
 import { ReportItem } from './ReportItem';
 import './ReportSplitView.css';

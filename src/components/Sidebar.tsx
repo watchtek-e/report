@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboard, FileText, Calendar, BarChart2, Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { useUserStore } from '../store/userStore';

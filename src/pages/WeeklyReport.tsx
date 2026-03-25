@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { FormEvent, useState, useMemo } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -53,7 +53,7 @@ export const WeeklyReport = () => {
     ...myDailyReports.filter(r => r.type === 'done')
   ], [myWeeklyPlans, myDailyReports]);
 
-  const handleAddPlan = (e: React.FormEvent) => {
+  const handleAddPlan = (e: FormEvent) => {
     e.preventDefault();
     if (!currentUser) return;
     addReport({

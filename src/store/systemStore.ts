@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export interface SubCategory {
   id: string;
@@ -14,55 +16,129 @@ export interface TaskCategory {
 interface SystemState {
   categories: TaskCategory[];
   holidays: string[]; // 공휴일 날짜 ('yyyy-MM-dd')
+  isLoading: boolean;
+  unsubscribeSystem: (() => void) | null;
+  startSystemSync: () => void;
+  stopSystemSync: () => void;
   
-  addCategory: (mainType: string) => void;
-  removeCategory: (id: string) => void;
-  addSubCategory: (categoryId: string, subName: string) => void;
-  removeSubCategory: (categoryId: string, subId: string) => void;
+  addCategory: (mainType: string) => Promise<void>;
+  removeCategory: (id: string) => Promise<void>;
+  addSubCategory: (categoryId: string, subName: string) => Promise<void>;
+  removeSubCategory: (categoryId: string, subId: string) => Promise<void>;
   
-  addHoliday: (dateStr: string) => void;
-  removeHoliday: (dateStr: string) => void;
+  addHoliday: (dateStr: string) => Promise<void>;
+  removeHoliday: (dateStr: string) => Promise<void>;
 }
 
+const DEFAULT_CATEGORIES: TaskCategory[] = [
+  {
+    id: 'c1', mainType: '프로젝트 1',
+    subTypes: [
+      { id: 's1', name: '기획' }, { id: 's2', name: '설계' }, { id: 's3', name: '개발' },
+      { id: 's4', name: '테스트' }, { id: 's5', name: '문서작성' }, { id: 's6', name: '회의' }, { id: 's7', name: '기타' }
+    ]
+  },
+  {
+    id: 'c2', mainType: '고객지원',
+    subTypes: [{ id: 's8', name: '사이트1' }, { id: 's9', name: '사이트2' }]
+  },
+  { id: 'c3', mainType: '유지보수', subTypes: [] },
+  { id: 'c4', mainType: '교육', subTypes: [] },
+  { id: 'c5', mainType: '연차', subTypes: [] },
+  { id: 'c6', mainType: '기타', subTypes: [] }
+];
+
+const DEFAULT_HOLIDAYS = ['2026-03-01'];
+const systemDocRef = doc(db, 'system', 'shared');
+
+const createId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).slice(2);
+};
+
 export const useSystemStore = create<SystemState>((set) => ({
-  categories: [
-    { 
-      id: 'c1', mainType: '프로젝트 1', 
-      subTypes: [
-        { id: 's1', name: '기획' }, { id: 's2', name: '설계' }, { id: 's3', name: '개발' },
-        { id: 's4', name: '테스트' }, { id: 's5', name: '문서작성' }, { id: 's6', name: '회의' }, { id: 's7', name: '기타' }
-      ]
-    },
-    { 
-      id: 'c2', mainType: '고객지원', 
-      subTypes: [{ id: 's8', name: '사이트1' }, { id: 's9', name: '사이트2' }]
-    },
-    { id: 'c3', mainType: '유지보수', subTypes: [] },
-    { id: 'c4', mainType: '교육', subTypes: [] },
-    { id: 'c5', mainType: '연차', subTypes: [] },
-    { id: 'c6', mainType: '기타', subTypes: [] }
-  ],
-  holidays: ['2026-03-01'], // 3월 예시 휴일(공휴일)
-  addCategory: (mainType) => set((state) => ({
-    categories: [...state.categories, { id: Math.random().toString(36).slice(2), mainType, subTypes: [] }]
-  })),
-  removeCategory: (id) => set((state) => ({
-    categories: state.categories.filter((c) => c.id !== id)
-  })),
-  addSubCategory: (categoryId, subName) => set((state) => ({
-    categories: state.categories.map((c) => c.id === categoryId ? {
-      ...c, subTypes: [...c.subTypes, { id: Math.random().toString(36).slice(2), name: subName }]
-    } : c)
-  })),
-  removeSubCategory: (categoryId, subId) => set((state) => ({
-    categories: state.categories.map((c) => c.id === categoryId ? {
-      ...c, subTypes: c.subTypes.filter(s => s.id !== subId)
-    } : c)
-  })),
-  addHoliday: (dateStr) => set((state) => ({
-    holidays: state.holidays.includes(dateStr) ? state.holidays : [...state.holidays, dateStr]
-  })),
-  removeHoliday: (dateStr) => set((state) => ({
-    holidays: state.holidays.filter(d => d !== dateStr)
-  }))
+  categories: DEFAULT_CATEGORIES,
+  holidays: DEFAULT_HOLIDAYS,
+  isLoading: false,
+  unsubscribeSystem: null,
+
+  startSystemSync: () => {
+    useSystemStore.getState().unsubscribeSystem?.();
+    set({ isLoading: true });
+
+    const unsubscribe = onSnapshot(
+      systemDocRef,
+      async (snapshot) => {
+        if (!snapshot.exists()) {
+          await setDoc(systemDocRef, { categories: DEFAULT_CATEGORIES, holidays: DEFAULT_HOLIDAYS });
+          return;
+        }
+
+        const data = snapshot.data() as Partial<Pick<SystemState, 'categories' | 'holidays'>>;
+        set({
+          categories: data.categories ?? DEFAULT_CATEGORIES,
+          holidays: data.holidays ?? DEFAULT_HOLIDAYS,
+          isLoading: false,
+        });
+      },
+      (error) => {
+        console.error('Failed to sync system settings:', error);
+        set({ isLoading: false });
+      },
+    );
+
+    set({ unsubscribeSystem: unsubscribe });
+  },
+
+  stopSystemSync: () => {
+    useSystemStore.getState().unsubscribeSystem?.();
+    set({ unsubscribeSystem: null, isLoading: false });
+  },
+
+  addCategory: async (mainType) => {
+    const nextCategories = [...useSystemStore.getState().categories, { id: createId(), mainType, subTypes: [] }];
+    await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
+  },
+
+  removeCategory: async (id) => {
+    const nextCategories = useSystemStore.getState().categories.filter((category) => category.id !== id);
+    await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
+  },
+
+  addSubCategory: async (categoryId, subName) => {
+    const nextCategories = useSystemStore.getState().categories.map((category) => {
+      if (category.id !== categoryId) return category;
+      return {
+        ...category,
+        subTypes: [...category.subTypes, { id: createId(), name: subName }],
+      };
+    });
+
+    await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
+  },
+
+  removeSubCategory: async (categoryId, subId) => {
+    const nextCategories = useSystemStore.getState().categories.map((category) => {
+      if (category.id !== categoryId) return category;
+      return {
+        ...category,
+        subTypes: category.subTypes.filter((subType) => subType.id !== subId),
+      };
+    });
+
+    await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
+  },
+
+  addHoliday: async (dateStr) => {
+    const prevHolidays = useSystemStore.getState().holidays;
+    const nextHolidays = prevHolidays.includes(dateStr) ? prevHolidays : [...prevHolidays, dateStr];
+    await setDoc(systemDocRef, { holidays: nextHolidays }, { merge: true });
+  },
+
+  removeHoliday: async (dateStr) => {
+    const nextHolidays = useSystemStore.getState().holidays.filter((holiday) => holiday !== dateStr);
+    await setDoc(systemDocRef, { holidays: nextHolidays }, { merge: true });
+  },
 }));
