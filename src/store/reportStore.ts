@@ -12,6 +12,10 @@ export interface Report {
   progress: number;
   type: 'done' | 'todo';
   periodType: 'daily' | 'weekly' | 'monthly';
+  // weekly todo: [1..5] => 월~금
+  planWeekdays?: number[];
+  // monthly todo: [1..n] => n주차
+  planWeeks?: number[];
   isPlanned: boolean; // 추가됨!
 }
 
