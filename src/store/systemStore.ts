@@ -22,8 +22,13 @@ interface SystemState {
   stopSystemSync: () => void;
   
   addCategory: (mainType: string) => Promise<void>;
+  updateCategory: (id: string, mainType: string) => Promise<void>;
+  duplicateCategory: (id: string) => Promise<void>;
+  reorderCategory: (dragId: string, dropId: string) => Promise<void>;
   removeCategory: (id: string) => Promise<void>;
   addSubCategory: (categoryId: string, subName: string) => Promise<void>;
+  updateSubCategory: (categoryId: string, subId: string, subName: string) => Promise<void>;
+  reorderSubCategory: (categoryId: string, dragSubId: string, dropSubId: string) => Promise<void>;
   removeSubCategory: (categoryId: string, subId: string) => Promise<void>;
   
   addHoliday: (dateStr: string) => Promise<void>;
@@ -102,6 +107,47 @@ export const useSystemStore = create<SystemState>((set) => ({
     await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
   },
 
+  updateCategory: async (id, mainType) => {
+    const nextCategories = useSystemStore.getState().categories.map((category) => {
+      if (category.id !== id) return category;
+      return {
+        ...category,
+        mainType,
+      };
+    });
+
+    await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
+  },
+
+  duplicateCategory: async (id) => {
+    const target = useSystemStore.getState().categories.find((category) => category.id === id);
+    if (!target) return;
+
+    const copiedCategory: TaskCategory = {
+      id: createId(),
+      mainType: `${target.mainType} copy`,
+      subTypes: target.subTypes.map((subType) => ({
+        id: createId(),
+        name: subType.name,
+      })),
+    };
+
+    const nextCategories = [...useSystemStore.getState().categories, copiedCategory];
+    await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
+  },
+
+  reorderCategory: async (dragId, dropId) => {
+    const categories = [...useSystemStore.getState().categories];
+    const fromIndex = categories.findIndex((category) => category.id === dragId);
+    const toIndex = categories.findIndex((category) => category.id === dropId);
+    if (fromIndex < 0) return;
+    if (toIndex < 0 || fromIndex === toIndex) return;
+
+    const [target] = categories.splice(fromIndex, 1);
+    categories.splice(toIndex, 0, target);
+    await setDoc(systemDocRef, { categories }, { merge: true });
+  },
+
   removeCategory: async (id) => {
     const nextCategories = useSystemStore.getState().categories.filter((category) => category.id !== id);
     await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
@@ -113,6 +159,46 @@ export const useSystemStore = create<SystemState>((set) => ({
       return {
         ...category,
         subTypes: [...category.subTypes, { id: createId(), name: subName }],
+      };
+    });
+
+    await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
+  },
+
+  updateSubCategory: async (categoryId, subId, subName) => {
+    const nextCategories = useSystemStore.getState().categories.map((category) => {
+      if (category.id !== categoryId) return category;
+      return {
+        ...category,
+        subTypes: category.subTypes.map((subType) => {
+          if (subType.id !== subId) return subType;
+          return {
+            ...subType,
+            name: subName,
+          };
+        }),
+      };
+    });
+
+    await setDoc(systemDocRef, { categories: nextCategories }, { merge: true });
+  },
+
+  reorderSubCategory: async (categoryId, dragSubId, dropSubId) => {
+    const nextCategories = useSystemStore.getState().categories.map((category) => {
+      if (category.id !== categoryId) return category;
+
+      const subTypes = [...category.subTypes];
+      const fromIndex = subTypes.findIndex((subType) => subType.id === dragSubId);
+      const toIndex = subTypes.findIndex((subType) => subType.id === dropSubId);
+      if (fromIndex < 0) return category;
+      if (toIndex < 0 || fromIndex === toIndex) return category;
+
+      const [target] = subTypes.splice(fromIndex, 1);
+      subTypes.splice(toIndex, 0, target);
+
+      return {
+        ...category,
+        subTypes,
       };
     });
 

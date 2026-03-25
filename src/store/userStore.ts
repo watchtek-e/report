@@ -21,6 +21,8 @@ interface UserState {
   unsubscribeUsers: (() => void) | null;
   startUserSync: () => void;
   stopUserSync: () => void;
+  getAllUsers: () => Record<string, User>;
+  getTeamUserIds: (department: string) => string[];
   login: (id: string, pw: string) => boolean;
   register: (payload: StoredUser) => Promise<{ ok: boolean; message?: string }>;
   logout: () => void;
@@ -40,6 +42,14 @@ const toUser = (user: StoredUser): User => ({
   part: user.part,
   position: user.position,
 });
+
+const buildAllUsers = (customUsers: Record<string, StoredUser>) => {
+  const combined = { ...MOCK_USERS, ...customUsers };
+  return Object.entries(combined).reduce<Record<string, User>>((acc, [id, user]) => {
+    acc[id] = toUser(user);
+    return acc;
+  }, {});
+};
 
 const usersCollectionRef = collection(db, 'users');
 
@@ -86,6 +96,15 @@ export const useUserStore = create<UserState>()(
       stopUserSync: () => {
         get().unsubscribeUsers?.();
         set({ unsubscribeUsers: null });
+      },
+
+      getAllUsers: () => buildAllUsers(get().customUsers),
+
+      getTeamUserIds: (department) => {
+        const allUsers = buildAllUsers(get().customUsers);
+        return Object.values(allUsers)
+          .filter((user) => user.department === department)
+          .map((user) => user.id);
       },
 
       login: (id, pw) => {

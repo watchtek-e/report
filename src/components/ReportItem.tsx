@@ -5,7 +5,14 @@ import { Button } from './Button';
 import { Input } from './Input';
 import './ReportItem.css';
 
-export const ReportItem = ({ report, isReadOnly = false }: { report: Report, isReadOnly?: boolean }) => {
+interface ReportItemProps {
+  report: Report;
+  isReadOnly?: boolean;
+  forceMdForDone?: boolean;
+  forceMdForTodo?: boolean;
+}
+
+export const ReportItem = ({ report, isReadOnly = false, forceMdForDone = false, forceMdForTodo = false }: ReportItemProps) => {
   const { updateReport, deleteReport } = useReportStore();
   const { categories } = useSystemStore();
   const [isEditing, setIsEditing] = useState(false);
@@ -99,6 +106,15 @@ export const ReportItem = ({ report, isReadOnly = false }: { report: Report, isR
 
   const [mainCat, subCat] = report.category.split(' > ');
 
+  const effortMh = Number(report.mh || 0);
+  const effortMd = Number((effortMh / 8).toFixed(1));
+  const doneEffortText = forceMdForDone || report.periodType === 'weekly' || report.periodType === 'monthly'
+    ? `${effortMd}MD / `
+    : `${effortMh}MH / `;
+  const todoEffortText = forceMdForTodo || report.periodType === 'weekly' || report.periodType === 'monthly'
+    ? `${effortMd}MD / `
+    : `${effortMh}MH / `;
+
   return (
     <div className="report-item">
       <div className="report-info">
@@ -112,11 +128,11 @@ export const ReportItem = ({ report, isReadOnly = false }: { report: Report, isR
         
         {report.type === 'done' ? (
           <span className="report-stats done-stats" style={{ marginLeft: 'auto', flexShrink: 0 }}>
-            {report.periodType !== 'weekly' ? `${report.mh}MH / ` : ''}진행률 {report.progress}%
+            {doneEffortText}진행률 {report.progress}%
           </span>
         ) : (
           <span className="report-stats todo-stats" style={{ marginLeft: 'auto', flexShrink: 0 }}>
-            {report.periodType === 'monthly' ? `${(report.mh/8).toFixed(1)}MD / ` : report.periodType !== 'weekly' ? `${report.mh}MH / ` : ''}예상 {report.progress}%
+            {todoEffortText}예상 {report.progress}%
           </span>
         )}
       </div>

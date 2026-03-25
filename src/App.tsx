@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { DailyReport } from './pages/DailyReport'
 import { WeeklyReport } from './pages/WeeklyReport'
 import { MonthlyReport } from './pages/MonthlyReport'
+import { ConsolidationCheck } from './pages/ConsolidationCheck'
 import { Dashboard } from './pages/Dashboard'
 import { Login } from './pages/Login'
 import { Settings } from './pages/Settings'
@@ -22,8 +23,9 @@ const PrivateLayout = ({ children }: { children: React.ReactNode }) => {
     switch (location.pathname) {
       case '/': return '내 업무 대시보드';
       case '/daily': return '일간 보고';
-      case '/weekly': return '주간 시스템 취합 및 계획';
-      case '/monthly': return '월간 시스템 취합 및 계획';
+      case '/weekly': return '주간 보고';
+      case '/monthly': return '월간 보고';
+      case '/consolidation': return '취합 확인';
       case '/settings': return '앱 설정 및 관리';
       default: return 'Watchtek Report';
     }
@@ -46,6 +48,7 @@ const PrivateLayout = ({ children }: { children: React.ReactNode }) => {
 
 function App() {
   const { currentUser } = useUserStore();
+  const getTeamUserIds = useUserStore((state) => state.getTeamUserIds);
   const startUserSync = useUserStore((state) => state.startUserSync);
   const stopUserSync = useUserStore((state) => state.stopUserSync);
   const startReportSync = useReportStore((state) => state.startReportSync);
@@ -69,9 +72,12 @@ function App() {
       return;
     }
 
-    startReportSync(currentUser.id);
+    const teamUserIds = getTeamUserIds(currentUser.department);
+    const targets = teamUserIds.length > 0 ? teamUserIds : [currentUser.id];
+
+    startReportSync(targets);
     return () => stopReportSync();
-  }, [currentUser, startReportSync, stopReportSync]);
+  }, [currentUser, getTeamUserIds, startReportSync, stopReportSync]);
 
   return (
     <HashRouter>
@@ -84,6 +90,7 @@ function App() {
               <Route path="/daily" element={<DailyReport />} />
               <Route path="/weekly" element={<WeeklyReport />} />
               <Route path="/monthly" element={<MonthlyReport />} />
+              <Route path="/consolidation" element={<ConsolidationCheck />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </PrivateLayout>

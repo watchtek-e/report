@@ -57,33 +57,106 @@ const ProfileSettings = () => {
 };
 
 const CategorySettings = () => {
-  const { categories, addCategory, removeCategory, addSubCategory, removeSubCategory } = useSystemStore();
+  const {
+    categories,
+    addCategory,
+    updateCategory,
+    duplicateCategory,
+    reorderCategory,
+    removeCategory,
+    addSubCategory,
+    updateSubCategory,
+    reorderSubCategory,
+    removeSubCategory,
+  } = useSystemStore();
   const [newMain, setNewMain] = useState('');
   const [newSub, setNewSub] = useState('');
   const [selectedMainId, setSelectedMainId] = useState<string | null>(null);
+  const [draggingCategoryId, setDraggingCategoryId] = useState<string | null>(null);
+  const [draggingSubId, setDraggingSubId] = useState<string | null>(null);
 
   const selectedCategory = categories.find(c => c.id === selectedMainId);
 
+  const handleEditCategory = async (categoryId: string, prevName: string) => {
+    const nextName = prompt('유형명을 수정해 주세요.', prevName);
+    if (!nextName) return;
+
+    const trimmed = nextName.trim();
+    if (!trimmed) return;
+
+    await updateCategory(categoryId, trimmed);
+  };
+
+  const handleEditSubCategory = async (categoryId: string, subId: string, prevName: string) => {
+    const nextName = prompt('상세유형명을 수정해 주세요.', prevName);
+    if (!nextName) return;
+
+    const trimmed = nextName.trim();
+    if (!trimmed) return;
+
+    await updateSubCategory(categoryId, subId, trimmed);
+  };
+
   return (
-    <Card title="회사 통용 단위 업무 체계 2-Depth 관리" className="p-4-settings">
+    <Card title="유형 관리" className="p-4-settings">
       <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
         {/* 대분류 구간 */}
         <div style={{ flex: 1, minWidth: '250px', borderRight: '1px solid var(--border-color)', paddingRight: '2rem' }}>
           <h4 style={{marginTop: 0}}>유형 (대분류)</h4>
+          <p style={{ marginTop: 0, marginBottom: '0.6rem', fontSize: '0.8rem', color: '#64748b' }}>드래그해서 순서를 변경할 수 있습니다.</p>
           <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1rem 0' }}>
-            {categories.map(c => (
+            {categories.map((c) => (
               <li 
                 key={c.id} 
                 style={{ 
                   display: 'flex', justifyContent: 'space-between', padding: '0.6rem', 
                   border: '1px solid var(--border-color)', borderRadius: '6px', marginBottom: '0.5rem',
-                  backgroundColor: c.id === selectedMainId ? '#eff6ff' : 'transparent',
+                  backgroundColor: draggingCategoryId === c.id ? '#dbeafe' : c.id === selectedMainId ? '#eff6ff' : 'transparent',
                   cursor: 'pointer', borderColor: c.id === selectedMainId ? '#3b82f6' : 'var(--border-color)'
                 }}
+                draggable
                 onClick={() => setSelectedMainId(c.id)}
+                onDragStart={() => setDraggingCategoryId(c.id)}
+                onDragEnd={() => setDraggingCategoryId(null)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  if (!draggingCategoryId || draggingCategoryId === c.id) return;
+                  await reorderCategory(draggingCategoryId, c.id);
+                  setDraggingCategoryId(null);
+                }}
               >
                 <div style={{fontWeight: c.id === selectedMainId ? 600 : 400, color: c.id === selectedMainId ? '#1d4ed8' : 'inherit'}}>{c.mainType}</div>
-                <button onClick={(e) => { e.stopPropagation(); removeCategory(c.id); if (selectedMainId === c.id) setSelectedMainId(null); }} style={{background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'}}>삭제</button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditCategory(c.id, c.mainType);
+                    }}
+                    style={{background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.8rem'}}
+                  >
+                    수정
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      duplicateCategory(c.id);
+                    }}
+                    style={{background: 'none', border: 'none', color: '#16a34a', cursor: 'pointer', fontSize: '0.8rem'}}
+                  >
+                    복사
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeCategory(c.id);
+                      if (selectedMainId === c.id) setSelectedMainId(null);
+                    }}
+                    style={{background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'}}
+                  >
+                    삭제
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -101,12 +174,47 @@ const CategorySettings = () => {
           ) : (
             <>
               <p style={{ fontSize: '0.9rem', color: '#1d4ed8', marginBottom: '1rem' }}><strong>[{selectedCategory.mainType}]</strong>에 속하는 상세 유형 목록입니다.</p>
+              <p style={{ marginTop: '-0.4rem', marginBottom: '0.8rem', fontSize: '0.8rem', color: '#64748b' }}>드래그해서 순서를 변경할 수 있습니다.</p>
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1rem 0' }}>
                 {selectedCategory.subTypes.length === 0 && <li style={{padding: '0.5rem', fontSize: '0.9rem', color: '#94a3b8'}}>등록된 상세 유형이 없습니다.</li>}
-                {selectedCategory.subTypes.map(s => (
-                  <li key={s.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.6rem', border: '1px solid var(--border-color)', borderRadius: '6px', marginBottom: '0.5rem' }}>
+                {selectedCategory.subTypes.map((s) => (
+                  <li
+                    key={s.id}
+                    draggable
+                    onDragStart={() => setDraggingSubId(s.id)}
+                    onDragEnd={() => setDraggingSubId(null)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      if (!draggingSubId || draggingSubId === s.id) return;
+                      await reorderSubCategory(selectedCategory.id, draggingSubId, s.id);
+                      setDraggingSubId(null);
+                    }}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '0.6rem',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '6px',
+                      marginBottom: '0.5rem',
+                      backgroundColor: draggingSubId === s.id ? '#e0f2fe' : '#ffffff',
+                    }}
+                  >
                     <div>{s.name}</div>
-                    <button onClick={() => removeSubCategory(selectedCategory.id, s.id)} style={{background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'}}>삭제</button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => handleEditSubCategory(selectedCategory.id, s.id, s.name)}
+                        style={{background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: '0.8rem'}}
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={() => removeSubCategory(selectedCategory.id, s.id)}
+                        style={{background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem'}}
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>

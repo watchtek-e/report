@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -6,7 +6,7 @@ import { useReportStore } from '../store/reportStore';
 import { useSystemStore } from '../store/systemStore';
 import { useUserStore } from '../store/userStore';
 import { ReportSplitView } from '../components/ReportSplitView';
-import { format } from 'date-fns';
+import { endOfMonth, format, isWithinInterval, parseISO, startOfMonth } from 'date-fns';
 import './DailyReport.css';
 
 export const DailyReport = () => {
@@ -23,6 +23,7 @@ export const DailyReport = () => {
   const [progress, setProgress] = useState('');
   const [isPlanned, setIsPlanned] = useState(true);
   const [content, setContent] = useState('');
+  const [selectedMonthlyPlanId, setSelectedMonthlyPlanId] = useState('');
 
   const selectedMain = categories.find(c => c.id === mainType);
   const subOptions = selectedMain?.subTypes ?? [];
@@ -37,6 +38,37 @@ export const DailyReport = () => {
 
   const todayReports = reports.filter(r => r.date === selectedDate && r.periodType === 'daily' && r.userId === currentUser?.id);
   const isHoliday = holidays.includes(selectedDate);
+  const monthStart = startOfMonth(parseISO(selectedDate));
+  const monthEnd = endOfMonth(parseISO(selectedDate));
+
+  const monthlyPlanOptions = useMemo(() => (
+    reports.filter((report) =>
+      report.userId === currentUser?.id &&
+      report.periodType === 'monthly' &&
+      report.type === 'todo' &&
+      isWithinInterval(parseISO(report.date), { start: monthStart, end: monthEnd }),
+    )
+  ), [reports, currentUser?.id, monthStart, monthEnd]);
+
+  const applyMonthlyPlan = (planId: string) => {
+    const target = monthlyPlanOptions.find((plan) => plan.id === planId);
+    if (!target) return;
+
+    const [mainName, subName] = target.category.split(' > ');
+    const main = categories.find((category) => category.mainType === mainName);
+    const sub = main?.subTypes.find((subTypeItem) => subTypeItem.name === subName);
+
+    if (main) setMainType(main.id);
+    setSubType(sub?.id ?? '');
+    setContent(target.content);
+    setProgress(String(target.progress));
+    setMh(String(target.mh));
+    setIsPlanned(target.isPlanned);
+  };
+
+  const todoEnteredMh = todayReports.filter((report) => report.type === 'todo').reduce((acc, report) => acc + report.mh, 0);
+  const doneEnteredMh = todayReports.filter((report) => report.type === 'done').reduce((acc, report) => acc + report.mh, 0);
+  const dailyTotalMh = isHoliday ? 0 : 8;
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -119,6 +151,25 @@ export const DailyReport = () => {
                 계획작업
               </label>
             </div>
+            {type === 'todo' && (
+              <div className="ui-input-container" style={{ flex: '0 0 260px' }}>
+                <label className="ui-input-label" style={{ fontSize: '0.78rem' }}>월간 계획 가져오기</label>
+                <select
+                  className="ui-input"
+                  value={selectedMonthlyPlanId}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    setSelectedMonthlyPlanId(nextId);
+                    if (nextId) applyMonthlyPlan(nextId);
+                  }}
+                >
+                  <option value="">선택 안함</option>
+                  {monthlyPlanOptions.map((plan) => (
+                    <option key={plan.id} value={plan.id}>{plan.content}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div style={{ paddingBottom: '2px', marginLeft: 'auto' }}>
               <Button type="submit" size="sm">✔</Button>
             </div>
@@ -134,8 +185,12 @@ export const DailyReport = () => {
         </form>
       </Card>
 
-      <Card title={`일간 업무 리스트 (${selectedDate})`} className="mb-4">
-        <ReportSplitView reports={todayReports} />
+      <Card title="일간 현황" className="mb-4">
+        <ReportSplitView
+          reports={todayReports}
+          todoSummaryText={`(입력공수 ${todoEnteredMh.toFixed(1)}MH / 총 공수 ${dailyTotalMh.toFixed(1)}MH)`}
+          doneSummaryText={`(입력공수 ${doneEnteredMh.toFixed(1)}MH / 총 공수 ${dailyTotalMh.toFixed(1)}MH)`}
+        />
       </Card>
     </div>
   );

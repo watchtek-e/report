@@ -6,12 +6,22 @@ import { useReportStore } from '../store/reportStore';
 import { useSystemStore } from '../store/systemStore';
 import { useUserStore } from '../store/userStore';
 import { ReportSplitView } from '../components/ReportSplitView';
-import { format, startOfWeek, endOfWeek, isWithinInterval, parseISO, getWeekOfMonth, getMonth } from 'date-fns';
+import { addDays, endOfMonth, format, parse, startOfMonth, startOfWeek, endOfWeek, isWithinInterval, parseISO, getMonth } from 'date-fns';
 import './WeeklyReport.css';
+
+const toWeekInputValue = (dateStr: string) => {
+  const date = parseISO(dateStr);
+  return format(date, "RRRR-'W'II");
+};
+
+const fromWeekInputToDate = (weekValue: string) => {
+  const parsed = parse(weekValue, "RRRR-'W'II", new Date());
+  return format(startOfWeek(parsed, { weekStartsOn: 1 }), 'yyyy-MM-dd');
+};
 
 export const WeeklyReport = () => {
   const { reports, addReport } = useReportStore();
-  const { categories } = useSystemStore();
+  const { categories, holidays } = useSystemStore();
   const { currentUser } = useUserStore();
 
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -21,6 +31,7 @@ export const WeeklyReport = () => {
   const [progress, setProgress] = useState('');
   const [isPlanned, setIsPlanned] = useState(true);
   const [content, setContent] = useState('');
+  const [selectedMonthlyPlanId, setSelectedMonthlyPlanId] = useState('');
 
   const selectedMain = categories.find(c => c.id === mainType);
   const subOptions = selectedMain?.subTypes ?? [];
@@ -35,8 +46,34 @@ export const WeeklyReport = () => {
 
   const weekStart = startOfWeek(parseISO(selectedDate), { weekStartsOn: 1 });
   const weekEnd = endOfWeek(parseISO(selectedDate), { weekStartsOn: 1 });
-  const currentMonth = getMonth(weekStart) + 1;
-  const currentWeek = getWeekOfMonth(weekStart, { weekStartsOn: 1 });
+  // 월 경계 주차는 ISO 관례에 맞춰 "해당 주의 목요일이 속한 달" 기준으로 표기한다.
+  const weekAnchor = addDays(weekStart, 3);
+  const currentMonth = getMonth(weekAnchor) + 1;
+
+  const getMonthWeekByThursdayRule = (anchorDate: Date) => {
+    const targetMonth = anchorDate.getMonth();
+    const monthStart = startOfMonth(anchorDate);
+    const monthEnd = endOfMonth(anchorDate);
+    const firstWeekStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+
+    const cur = new Date(firstWeekStart);
+    let weekNumber = 0;
+
+    while (cur <= monthEnd) {
+      const thursday = addDays(cur, 3);
+      if (thursday.getMonth() === targetMonth) {
+        weekNumber += 1;
+        if (cur.getTime() === weekStart.getTime()) {
+          return weekNumber;
+        }
+      }
+      cur.setDate(cur.getDate() + 7);
+    }
+
+    return weekNumber;
+  };
+
+  const currentWeek = getMonthWeekByThursdayRule(weekAnchor);
 
   const myDailyReports = useMemo(() =>
     reports.filter(r => r.periodType === 'daily' && r.userId === currentUser?.id &&
@@ -48,10 +85,48 @@ export const WeeklyReport = () => {
       isWithinInterval(parseISO(r.date), { start: weekStart, end: weekEnd })),
     [reports, selectedDate, weekStart, weekEnd, currentUser?.id]);
 
+  const monthlyPlanOptions = useMemo(() =>
+    reports.filter((report) => {
+      if (report.userId !== currentUser?.id) return false;
+      if (report.periodType !== 'monthly' || report.type !== 'todo') return false;
+
+      const reportDate = parseISO(report.date);
+      return isWithinInterval(reportDate, {
+        start: startOfMonth(weekAnchor),
+        end: endOfMonth(weekAnchor),
+      });
+    }),
+    [reports, currentUser?.id, weekAnchor],
+  );
+
   const combinedReports = useMemo(() => [
     ...myWeeklyPlans,
     ...myDailyReports.filter(r => r.type === 'done')
   ], [myWeeklyPlans, myDailyReports]);
+
+  const todoEnteredMd = combinedReports
+    .filter((report) => report.type === 'todo')
+    .reduce((acc, report) => acc + report.mh / 8, 0);
+  const doneEnteredMd = combinedReports
+    .filter((report) => report.type === 'done')
+    .reduce((acc, report) => acc + report.mh / 8, 0);
+
+  const weeklyTotalMd = useMemo(() => {
+    const holidaySet = new Set(holidays);
+    const cursor = new Date(weekStart);
+    let workingDays = 0;
+
+    while (cursor <= weekEnd) {
+      const dayOfWeek = cursor.getDay();
+      const dateStr = format(cursor, 'yyyy-MM-dd');
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidaySet.has(dateStr)) {
+        workingDays += 1;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return workingDays;
+  }, [holidays, weekStart, weekEnd]);
 
   const handleAddPlan = (e: FormEvent) => {
     e.preventDefault();
@@ -72,12 +147,33 @@ export const WeeklyReport = () => {
     setProgress('');
   };
 
+  const applyMonthlyPlan = (planId: string) => {
+    const target = monthlyPlanOptions.find((plan) => plan.id === planId);
+    if (!target) return;
+
+    const [mainName, subName] = target.category.split(' > ');
+    const main = categories.find((category) => category.mainType === mainName);
+    const sub = main?.subTypes.find((subTypeItem) => subTypeItem.name === subName);
+
+    if (main) setMainType(main.id);
+    setSubType(sub?.id ?? '');
+    setContent(target.content);
+    setProgress(String(target.progress));
+    setMd((target.mh / 8).toFixed(1));
+    setIsPlanned(target.isPlanned);
+  };
+
   return (
     <div className="weekly-report-page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-        <h2 style={{ fontSize: '1.2rem', margin: 0 }}>주간 단위 실적 및 계획</h2>
+        <h2 style={{ fontSize: '1.2rem', margin: 0 }}>주간 보고</h2>
         <div style={{ fontSize: '0.82rem' }}>
-          <Input type="date" label="" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
+          <Input
+            type="week"
+            label=""
+            value={toWeekInputValue(selectedDate)}
+            onChange={(e) => setSelectedDate(fromWeekInputToDate(e.target.value))}
+          />
         </div>
       </div>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
@@ -85,7 +181,14 @@ export const WeeklyReport = () => {
       </p>
 
       <Card title={`${currentMonth}월 ${currentWeek}주차 전체 현황`} className="mb-4">
-        <ReportSplitView reports={combinedReports} doneReadOnly={true} />
+        <ReportSplitView
+          reports={combinedReports}
+          doneReadOnly={true}
+          forceMdForDone={true}
+          forceMdForTodo={true}
+          todoSummaryText={`(입력공수 ${todoEnteredMd.toFixed(1)}MD / 총 공수 ${weeklyTotalMd.toFixed(1)}MD)`}
+          doneSummaryText={`(입력공수 ${doneEnteredMd.toFixed(1)}MD / 총 공수 ${weeklyTotalMd.toFixed(1)}MD)`}
+        />
       </Card>
 
       <Card title={`${currentMonth}월 ${currentWeek}주차 업무 계획 추가`} className="mb-4">
@@ -117,6 +220,23 @@ export const WeeklyReport = () => {
                 <input type="checkbox" checked={isPlanned} onChange={e => setIsPlanned(e.target.checked)} style={{ width: '15px', height: '15px' }} />
                 계획작업
               </label>
+            </div>
+            <div className="ui-input-container" style={{ flex: '0 0 260px' }}>
+              <label className="ui-input-label" style={{ fontSize: '0.78rem' }}>월간 계획 가져오기</label>
+              <select
+                className="ui-input"
+                value={selectedMonthlyPlanId}
+                onChange={(e) => {
+                  const nextId = e.target.value;
+                  setSelectedMonthlyPlanId(nextId);
+                  if (nextId) applyMonthlyPlan(nextId);
+                }}
+              >
+                <option value="">선택 안함</option>
+                {monthlyPlanOptions.map((plan) => (
+                  <option key={plan.id} value={plan.id}>{plan.content}</option>
+                ))}
+              </select>
             </div>
             <div style={{ paddingBottom: '2px', marginLeft: 'auto' }}>
               <Button type="submit" size="sm">✔</Button>

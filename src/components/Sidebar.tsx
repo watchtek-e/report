@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Calendar, BarChart2, Settings as SettingsIcon, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileText, Calendar, BarChart2, ClipboardCheck, Settings as SettingsIcon, LogOut } from 'lucide-react';
 import { useUserStore } from '../store/userStore';
 import './Sidebar.css';
 
@@ -18,6 +18,7 @@ export const Sidebar = () => {
     { to: '/daily', icon: <FileText size={18} />, label: '일간 보고' },
     { to: '/weekly', icon: <Calendar size={18} />, label: '주간 보고' },
     { to: '/monthly', icon: <BarChart2 size={18} />, label: '월간 보고' },
+    { to: '/consolidation', icon: <ClipboardCheck size={18} />, label: '취합 확인' },
     { to: '/settings', icon: <SettingsIcon size={18} />, label: '시스템 설정' },
   ];
 

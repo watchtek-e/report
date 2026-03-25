@@ -7,7 +7,7 @@ import { useSystemStore } from '../store/systemStore';
 import { useUserStore } from '../store/userStore';
 import { ReportSplitView } from '../components/ReportSplitView';
 import {
-  format, startOfMonth, endOfMonth, isWithinInterval, parseISO
+  format, startOfMonth, endOfMonth, isWithinInterval, parseISO, startOfWeek
 } from 'date-fns';
 import './WeeklyReport.css';
 
@@ -45,10 +45,8 @@ export const MonthlyReport = () => {
     const monthEndDate = endOfMonth(parseISO(selectedDate));
     let weekCount = 0;
 
-    // 해당 월의 모든 월요일 순회
-    const cur = new Date(monthStartDate);
-    // 첫 번째 월요일 찾기
-    while (cur.getDay() !== 1) { cur.setDate(cur.getDate() + 1); }
+    // 월 시작일이 포함된 주의 월요일부터 순회
+    const cur = startOfWeek(monthStartDate, { weekStartsOn: 1 });
 
     while (cur <= monthEndDate) {
       // 해당 주의 목요일 (월요일 + 3일)
@@ -82,8 +80,7 @@ export const MonthlyReport = () => {
     let firstMonday: Date | null = null;
     let lastFriday: Date | null = null;
 
-    const cur = new Date(monthStartDate);
-    while (cur.getDay() !== 1) { cur.setDate(cur.getDate() + 1); }
+    const cur = startOfWeek(monthStartDate, { weekStartsOn: 1 });
 
     while (cur <= monthEndDate) {
       const thursday = new Date(cur);
@@ -113,12 +110,31 @@ export const MonthlyReport = () => {
       isWithinInterval(parseISO(r.date), { start: monthStart, end: monthEnd })),
     [reports, selectedDate, monthStart, monthEnd, currentUser?.id]);
 
-  const totalPlannedMd = myMonthlyPlans.reduce((acc, r) => acc + (r.mh / 8), 0).toFixed(1);
-
   const combinedReports = useMemo(() => [
     ...myMonthlyPlans,
     ...myDailyReports.filter(r => r.type === 'done')
   ], [myMonthlyPlans, myDailyReports]);
+
+  const todoEnteredMd = combinedReports.filter((report) => report.type === 'todo').reduce((acc, report) => acc + report.mh / 8, 0);
+  const doneEnteredMd = combinedReports.filter((report) => report.type === 'done').reduce((acc, report) => acc + report.mh / 8, 0);
+
+  const monthlyTotalMd = useMemo(() => {
+    const holidaySet = new Set(holidays);
+    const cursor = parseISO(workingRange.start);
+    const end = parseISO(workingRange.end);
+    let workingDays = 0;
+
+    while (cursor <= end) {
+      const dayOfWeek = cursor.getDay();
+      const dateStr = format(cursor, 'yyyy-MM-dd');
+      if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidaySet.has(dateStr)) {
+        workingDays += 1;
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return workingDays;
+  }, [holidays, workingRange.end, workingRange.start]);
 
   const handleAddPlan = (e: FormEvent) => {
     e.preventDefault();
@@ -142,7 +158,7 @@ export const MonthlyReport = () => {
   return (
     <div className="weekly-report-page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-        <h2 style={{ fontSize: '1.2rem', margin: 0 }}>월간 실적 및 업무 계획</h2>
+        <h2 style={{ fontSize: '1.2rem', margin: 0 }}>월간 보고</h2>
         <div style={{ fontSize: '0.82rem' }}>
           <Input
             type="month"
@@ -160,15 +176,19 @@ export const MonthlyReport = () => {
       </p>
 
       <Card title={`${currentMonth}월 전체 현황`} className="mb-4">
-        <ReportSplitView reports={combinedReports} doneReadOnly={true} />
+        <ReportSplitView
+          reports={combinedReports}
+          doneReadOnly={true}
+          forceMdForDone={true}
+          forceMdForTodo={true}
+          todoSummaryText={`(입력공수 ${todoEnteredMd.toFixed(1)}MD / 총 공수 ${monthlyTotalMd.toFixed(1)}MD)`}
+          doneSummaryText={`(입력공수 ${doneEnteredMd.toFixed(1)}MD / 총 공수 ${monthlyTotalMd.toFixed(1)}MD)`}
+        />
       </Card>
 
       <Card title="" className="mb-4">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.6rem' }}>
+        <div style={{ marginBottom: '1rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.6rem' }}>
           <h3 style={{ margin: 0, fontSize: '1.05rem' }}>{currentMonth}월 업무 계획 추가</h3>
-          <span style={{ fontSize: '0.95rem', fontWeight: 600, color: '#4f46e5' }}>
-            계획 공수 합계: {totalPlannedMd} MD / {workingDaysCount} MD
-          </span>
         </div>
 
         <form onSubmit={handleAddPlan} className="report-form">

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { addDoc, collection, deleteDoc, doc, onSnapshot, query, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export interface Report {
@@ -19,7 +19,7 @@ interface ReportState {
   reports: Report[];
   isLoading: boolean;
   unsubscribeReports: (() => void) | null;
-  startReportSync: (userId: string) => void;
+  startReportSync: (userIds: string[]) => void;
   stopReportSync: () => void;
   addReport: (r: Omit<Report, 'id'>) => Promise<void>;
   deleteReport: (id: string) => Promise<void>;
@@ -33,16 +33,17 @@ export const useReportStore = create<ReportState>((set, get) => ({
   isLoading: false,
   unsubscribeReports: null,
 
-  startReportSync: (userId) => {
+  startReportSync: (userIds) => {
     get().unsubscribeReports?.();
     set({ isLoading: true });
 
-    const q = query(reportsCollectionRef, where('userId', '==', userId));
     const unsubscribe = onSnapshot(
-      q,
+      reportsCollectionRef,
       (snapshot) => {
+        const userSet = new Set(userIds);
         const nextReports = snapshot.docs
           .map((snapshotDoc) => ({ id: snapshotDoc.id, ...(snapshotDoc.data() as Omit<Report, 'id'>) }))
+          .filter((report) => userSet.has(report.userId))
           .sort((a, b) => b.date.localeCompare(a.date));
 
         set({ reports: nextReports, isLoading: false });
