@@ -1,0 +1,113 @@
+.report-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  transition: box-shadow 0.2s;
+}
+
+.report-item:hover {
+  box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+}
+
+.report-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.report-category {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  background-color: #eef2ff;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.report-content {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.report-stats {
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.done-stats {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.todo-stats {
+  background-color: #fef9c3;
+  color: #854d0e;
+}
+
+/* 호버 시에만 수정/삭제 버튼 표시 */
+.report-actions {
+  display: flex;
+  gap: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.15s ease-in-out;
+  flex-shrink: 0;
+}
+
+.report-item:hover .report-actions {
+  opacity: 1;
+}
+
+.action-btn {
+  background: none;
+  border: none;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+}
+
+.action-btn:hover {
+  background-color: rgba(0,0,0,0.05);
+}
+
+.text-blue { color: #2563eb; }
+.text-red { color: #ef4444; }
+
+/* Edit 모드 */
+.report-item-edit {
+  background-color: #f8fafc;
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  animation: fadeIn 0.2s;
+}
+
+.edit-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.edit-grid > * {
+  flex: 1;
+  min-width: 150px;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
