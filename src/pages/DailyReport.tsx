@@ -1,7 +1,8 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { MultiUserSelect } from '../components/MultiUserSelect';
 import { useReportStore } from '../store/reportStore';
 import { useSystemStore } from '../store/systemStore';
 import { useUserStore } from '../store/userStore';
@@ -22,8 +23,29 @@ export const DailyReport = () => {
   const [subType, setSubType] = useState('');
   const [mh, setMh] = useState('');
   const [progress, setProgress] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(currentUser ? [currentUser.id] : []);
   const [isPlanned, setIsPlanned] = useState(true);
   const [content, setContent] = useState('');
+  const isAssignedTo = (report: { userId: string; assigneeIds?: string[] }, userId: string) => {
+    const targets = report.assigneeIds && report.assigneeIds.length > 0 ? report.assigneeIds : [report.userId];
+    return targets.includes(userId);
+  };
+
+  const teamAssigneeOptions = useMemo(() => {
+    if (!currentUser) return [];
+    return Object.values(getAllUsers())
+      .filter((user) => user.department === currentUser.department)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [currentUser, getAllUsers]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setAssigneeIds([]);
+      return;
+    }
+    setAssigneeIds((prev) => (prev.length > 0 ? prev : [currentUser.id]));
+  }, [currentUser]);
+
 
   const selectedMain = categories.find(c => c.id === mainType);
   const subOptions = selectedMain?.subTypes ?? [];
@@ -47,14 +69,19 @@ export const DailyReport = () => {
     return [currentUser.id];
   }, [currentUser, getAllUsers]);
 
-  const todayReports = reports.filter(r => r.date === selectedDate && r.periodType === 'daily' && scopedUserIds.includes(r.userId));
+  const todayReports = reports.filter((report) =>
+    report.date === selectedDate &&
+    report.periodType === 'daily' &&
+    scopedUserIds.some((id) => isAssignedTo(report, id)),
+  );
   const isHoliday = holidays.includes(selectedDate);
   const monthStart = startOfMonth(parseISO(selectedDate));
   const monthEnd = endOfMonth(parseISO(selectedDate));
 
   const monthlyPlanOptions = useMemo(() => (
     reports.filter((report) =>
-      currentUser?.id === report.userId &&
+      !!currentUser?.id &&
+      isAssignedTo(report, currentUser.id) &&
       report.periodType === 'monthly' &&
       report.type === 'todo' &&
       isWithinInterval(parseISO(report.date), { start: monthStart, end: monthEnd }),
@@ -89,6 +116,7 @@ export const DailyReport = () => {
     setContent(plannedTask.content);
     setProgress(String(plannedTask.progress));
     setMh(String(plannedTask.mh));
+    setAssigneeIds(plannedTask.assigneeIds && plannedTask.assigneeIds.length > 0 ? plannedTask.assigneeIds : [plannedTask.userId]);
     setIsPlanned(plannedTask.isPlanned);
   };
 
@@ -102,6 +130,7 @@ export const DailyReport = () => {
       content,
       mh: Number(mh),
       progress: Number(progress) || 0,
+      assigneeIds: assigneeIds.length > 0 ? assigneeIds : [currentUser.id],
       type,
       periodType: 'daily',
       isPlanned
@@ -216,13 +245,19 @@ export const DailyReport = () => {
             <div style={{ flex: '0 0 80px' }}>
               <Input label="진행률(%)" type="number" min="0" max="100" value={progress} onChange={e => setProgress(e.target.value)} placeholder="0" required />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', paddingBottom: '4px' }}>
+            <div style={{ flex: '1 1 260px', minWidth: '240px' }}>
+              <MultiUserSelect
+                users={teamAssigneeOptions}
+                selectedIds={assigneeIds}
+                onChange={setAssigneeIds}
+                label="담당자(다중선택)"
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', paddingBottom: '2px', marginLeft: 'auto' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 <input type="checkbox" checked={isPlanned} onChange={e => setIsPlanned(e.target.checked)} style={{ width: '15px', height: '15px' }} />
                 계획작업
               </label>
-            </div>
-            <div style={{ paddingBottom: '2px', marginLeft: 'auto' }}>
               <Button type="submit" size="sm">✔</Button>
             </div>
           </div>

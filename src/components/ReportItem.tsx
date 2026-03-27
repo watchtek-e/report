@@ -17,10 +17,10 @@ interface ReportItemProps {
   report: Report;
   isReadOnly?: boolean;
   forceMdForDone?: boolean;
-  userName?: string;
+  usersMap?: Record<string, { name: string }>;
 }
 
-export const ReportItem = ({ report, isReadOnly = false, forceMdForDone = false, userName = '' }: ReportItemProps) => {
+export const ReportItem = ({ report, isReadOnly = false, forceMdForDone = false, usersMap = {} }: ReportItemProps) => {
   const { updateReport, deleteReport } = useReportStore();
   const { categories } = useSystemStore();
   const [isEditing, setIsEditing] = useState(false);
@@ -187,6 +187,11 @@ export const ReportItem = ({ report, isReadOnly = false, forceMdForDone = false,
   const scheduleLabel = report.type === 'todo'
     ? (report.periodType === 'weekly' ? weekdayLabel : report.periodType === 'monthly' ? weekLabel : '')
     : '';
+  const creatorName = usersMap[report.userId]?.name || report.userId;
+  const assigneeNames = (report.assigneeIds ?? [])
+    .map((id) => usersMap[id]?.name || id)
+    .filter((name, index, arr) => arr.indexOf(name) === index);
+  const assigneeLabel = assigneeNames.length > 0 ? `담당: ${assigneeNames.join(', ')}` : '';
 
   return (
     <div className="report-item">
@@ -196,7 +201,9 @@ export const ReportItem = ({ report, isReadOnly = false, forceMdForDone = false,
         {subCat && subCat !== '미지정' && <span style={{ fontWeight: 600, color: '#0ea5e9', backgroundColor: '#e0f2fe', padding: '0.15rem 0.4rem', borderRadius: '4px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>[{subCat}]</span>}
         {report.isPlanned && <span style={{ flexShrink: 0, fontSize: '0.75rem', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '0.15rem 0.4rem', borderRadius: '4px', fontWeight: 600, whiteSpace: 'nowrap' }}>[계획됨]</span>}
         <span style={{ fontSize: '0.9rem', color: '#6b7280', whiteSpace: 'nowrap' }}>({doneEffortText}{effortLabel}{scheduleLabel})</span>
-        {userName && <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: '#6b7280', fontWeight: 500 }}>{userName}</span>}
+        <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: '#6b7280', fontWeight: 500 }}>
+          {assigneeLabel || creatorName}
+        </span>
       </div>
       
       {/* Second line: Ticket + Description + Actions */}

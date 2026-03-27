@@ -1,7 +1,8 @@
-import { FormEvent, useState, useMemo } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
+import { MultiUserSelect } from '../components/MultiUserSelect';
 import { useReportStore } from '../store/reportStore';
 import { useSystemStore } from '../store/systemStore';
 import { useUserStore } from '../store/userStore';
@@ -28,8 +29,29 @@ export const WeeklyReport = () => {
   const [subType, setSubType] = useState('');
   const [md, setMd] = useState('');
   const [progress, setProgress] = useState('');
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(currentUser ? [currentUser.id] : []);
   const [isPlanned, setIsPlanned] = useState(true);
   const [content, setContent] = useState('');
+    const isAssignedTo = (report: { userId: string; assigneeIds?: string[] }, userId: string) => {
+      const targets = report.assigneeIds && report.assigneeIds.length > 0 ? report.assigneeIds : [report.userId];
+      return targets.includes(userId);
+    };
+
+    const teamAssigneeOptions = useMemo(() => {
+      if (!currentUser) return [];
+      return Object.values(getAllUsers())
+        .filter((user) => user.department === currentUser.department)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }, [currentUser, getAllUsers]);
+
+    useEffect(() => {
+      if (!currentUser) {
+        setAssigneeIds([]);
+        return;
+      }
+      setAssigneeIds((prev) => (prev.length > 0 ? prev : [currentUser.id]));
+    }, [currentUser]);
+
   const [isPlanCardOpen, setIsPlanCardOpen] = useState(false);
   const [planWeekdays, setPlanWeekdays] = useState<number[]>([]);
 
@@ -87,18 +109,18 @@ export const WeeklyReport = () => {
   }, [currentUser, getAllUsers]);
 
   const myDailyReports = useMemo(() =>
-    reports.filter(r => r.periodType === 'daily' && scopedUserIds.includes(r.userId) &&
+    reports.filter(r => r.periodType === 'daily' && scopedUserIds.some((id) => isAssignedTo(r, id)) &&
       isWithinInterval(parseISO(r.date), { start: weekStart, end: weekEnd })),
     [reports, selectedDate, weekStart, weekEnd, scopedUserIds]);
 
   const myWeeklyPlans = useMemo(() =>
-    reports.filter(r => r.periodType === 'weekly' && scopedUserIds.includes(r.userId) &&
+    reports.filter(r => r.periodType === 'weekly' && scopedUserIds.some((id) => isAssignedTo(r, id)) &&
       isWithinInterval(parseISO(r.date), { start: weekStart, end: weekEnd })),
     [reports, selectedDate, weekStart, weekEnd, scopedUserIds]);
 
   const monthlyPlanOptions = useMemo(() =>
     reports.filter((report) => {
-      if (report.userId !== currentUser?.id) return false;
+      if (!currentUser?.id || !isAssignedTo(report, currentUser.id)) return false;
       if (report.periodType !== 'monthly' || report.type !== 'todo') return false;
 
       const reportDate = parseISO(report.date);
@@ -149,6 +171,7 @@ export const WeeklyReport = () => {
       content,
       mh: Number(md) * 8,
       progress: Number(progress) || 0,
+      assigneeIds: assigneeIds.length > 0 ? assigneeIds : [currentUser.id],
       type: 'todo',
       periodType: 'weekly',
       planWeekdays,
@@ -281,13 +304,19 @@ export const WeeklyReport = () => {
             <div style={{ flex: '0 0 80px' }}>
               <Input label="진행률(%)" type="number" min="0" max="100" value={progress} onChange={e => setProgress(e.target.value)} placeholder="0" required />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', paddingBottom: '4px' }}>
+            <div style={{ flex: '1 1 260px', minWidth: '240px' }}>
+              <MultiUserSelect
+                users={teamAssigneeOptions}
+                selectedIds={assigneeIds}
+                onChange={setAssigneeIds}
+                label="담당자(다중선택)"
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', paddingBottom: '2px', marginLeft: 'auto' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
                 <input type="checkbox" checked={isPlanned} onChange={e => setIsPlanned(e.target.checked)} style={{ width: '15px', height: '15px' }} />
                 계획작업
               </label>
-            </div>
-            <div style={{ paddingBottom: '2px', marginLeft: 'auto' }}>
               <Button type="submit" size="sm">✔</Button>
             </div>
           </div>

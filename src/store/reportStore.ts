@@ -5,6 +5,7 @@ import { db } from '../lib/firebase';
 export interface Report {
   id: string;
   userId: string;
+  assigneeIds?: string[];
   date: string;     
   category: string; 
   content: string;
